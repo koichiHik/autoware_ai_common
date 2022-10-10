@@ -19,6 +19,8 @@
 #include <utility>
 #include <vector>
 
+#include <ros/ros.h>
+
 #include <amathutils_lib/amathutils.hpp>
 #include <tf2_eigen/tf2_eigen.h>
 #include <Eigen/Core>
@@ -256,6 +258,50 @@ int getClosestWaypoint(const autoware_msgs::Lane &current_path, geometry_msgs::P
   {
     if (!wp.inDrivingDirection(i, current_pose))
       continue;
+    double distance = getPlaneDistance(wp.getWaypointPosition(i), current_pose.position);
+    not_cand_idx.update(i, distance);
+    if (distance > search_distance)
+      continue;
+    if (getRelativeAngle(wp.getWaypointPose(i), current_pose) > angle_threshold)
+      continue;
+    cand_idx.update(i, distance);
+  }
+  if (!cand_idx.isOK())
+  {
+    ROS_INFO("no candidate. search closest waypoint from all waypoints...");
+  }
+  return (!cand_idx.isOK()) ? not_cand_idx.result() : cand_idx.result();
+}
+
+// get closest waypoint from current pose
+int getClosestWaypointPrint(const autoware_msgs::Lane &current_path, geometry_msgs::Pose current_pose)
+{
+  if (current_path.waypoints.size() < 2 || getLaneDirection(current_path) == LaneDirection::Error)
+    return -1;
+
+  WayPoints wp;
+  wp.setPath(current_path);
+
+  // search closest candidate within a certain meter
+  double search_distance = 5.0;
+  double angle_threshold = 90;
+  MinIDSearch cand_idx, not_cand_idx;
+  for (int i = 1; i < wp.getSize(); i++)
+  {
+
+    double x = calcRelativeCoordinate(current_path.waypoints[i].pose.pose.position, current_pose).x;
+    const LaneDirection dir = getLaneDirection(current_path);
+    if (dir == LaneDirection::Backward) {
+      ROS_WARN("Driving Direction is and diff, Idx : %d, Diff : %lf, Dir : Backward ", i, x);
+    } else if (dir == LaneDirection::Forward) {
+      ROS_WARN("Driving Direction is and diff, Idx : %d, Diff : %lf, Dir : Forward ", i, x);
+    } else {
+      ROS_WARN("Driving Direction is Error.");
+    }
+
+    if (!wp.inDrivingDirection(i, current_pose)) {
+      continue;
+    }
     double distance = getPlaneDistance(wp.getWaypointPosition(i), current_pose.position);
     not_cand_idx.update(i, distance);
     if (distance > search_distance)
