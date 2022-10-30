@@ -18,9 +18,9 @@ macro(AW_CHECK_CUDA)
     find_package(CUDA REQUIRED)
     find_package(Eigen3 REQUIRED)
 
-    if(NOT ${CUDA_VERSION} VERSION_LESS "10.0"
-            AND NOT ${CUDA_VERSION} VERSION_EQUAL "10.0" )
-      message(FATAL_ERROR "GPU support on Melodic requires CUDA<=10.0")
+    if(NOT ${CUDA_VERSION} VERSION_LESS "10.2"
+            AND NOT ${CUDA_VERSION} VERSION_EQUAL "10.2" )
+      message(FATAL_ERROR "GPU support on Melodic requires CUDA<=10.2")
     endif()
     if(${CUDA_VERSION} VERSION_GREATER "9.1"
           AND ${CMAKE_VERSION} VERSION_LESS "3.12.3")
