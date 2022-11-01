@@ -99,6 +99,7 @@ install(
   TARGETS
     get_file
     points_map_loader
+    points_map_loader_upon_request
     vector_map_loader
     lanelet2_map_loader
     lanelet2_map_visualization

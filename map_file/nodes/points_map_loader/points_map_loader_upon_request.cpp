@@ -76,7 +76,7 @@ points_map_loader_upon_request::points_map_loader_upon_request(ros::NodeHandle &
   stat_msg.data = false;
   stat_pub_.publish(stat_msg);
 
-  service_ = nh.advertiseService("map_load_from_pcdfile", &points_map_loader_upon_request::publish_pcd, this);
+  service_ = nh.advertiseService("points_map_load", &points_map_loader_upon_request::publish_pcd, this);
 }
 
 
