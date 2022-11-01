@@ -24,88 +24,95 @@
 #include <std_msgs/Bool.h>
 #include <tf/transform_listener.h>
 
-#include "autoware_msgs/LaneArray.h"
+
+#include <autoware_msgs/String.h>
+#include <autoware_msgs/LaneArray.h>
 
 #include "map_file/get_file.h"
 
 namespace
 {
 
-ros::Publisher pcd_pub;
-ros::Publisher stat_pub;
-std_msgs::Bool stat_msg;
-
-sensor_msgs::PointCloud2 create_pcd(const std::vector<std::string>& pcd_paths, int* ret_err = NULL)
+sensor_msgs::PointCloud2 create_pcd(const std::string& pcd_path, int* ret_err = NULL)
 {
-  sensor_msgs::PointCloud2 pcd, part;
-  for (const std::string& path : pcd_paths)
-  {
-    // Following outputs are used for progress bar of Runtime Manager.
-    if (pcd.width == 0)
+  sensor_msgs::PointCloud2 pcd;
+
+  // Following outputs are used for progress bar of Runtime Manager.
+  if (pcd.width == 0) {
+    if (pcl::io::loadPCDFile(pcd_path.c_str(), pcd) == -1)
     {
-      if (pcl::io::loadPCDFile(path.c_str(), pcd) == -1)
-      {
-        std::cerr << "load failed " << path << std::endl;
-        if (ret_err)
-          *ret_err = 1;
+      std::cerr << "load failed " << pcd_path << std::endl;
+      if (ret_err) {
+        *ret_err = 1;
       }
     }
-    else
-    {
-      if (pcl::io::loadPCDFile(path.c_str(), part) == -1)
-      {
-        std::cerr << "load failed " << path << std::endl;
-        if (ret_err)
-          *ret_err = 1;
-      }
-      pcd.width += part.width;
-      pcd.row_step += part.row_step;
-      pcd.data.insert(pcd.data.end(), part.data.begin(), part.data.end());
-    }
-    std::cerr << "load " << path << std::endl;
-    if (!ros::ok())
-      break;
   }
+  std::cerr << "load " << pcd_path << std::endl;
 
   return pcd;
 }
 
-void publish_pcd(sensor_msgs::PointCloud2 pcd, const int* errp = NULL)
-{
-  if (pcd.width != 0)
-  {
-    pcd.header.frame_id = "map";
-    pcd_pub.publish(pcd);
+class points_map_loader_upon_request {
+public:
+  points_map_loader_upon_request(ros::NodeHandle &nh, ros::NodeHandle &pnh);
+  
+  bool publish_pcd(autoware_msgs::String::Request &req, autoware_msgs::String::Request &res);
 
-    if (errp == NULL || *errp == 0)
-    {
-      stat_msg.data = true;
-      stat_pub.publish(stat_msg);
-    }
-  }
+  void run();
+
+private:
+  ros::Publisher pcd_pub_;
+  ros::Publisher stat_pub_;
+  ros::ServiceServer service_;
+
+};
+
+points_map_loader_upon_request::points_map_loader_upon_request(ros::NodeHandle &nh, ros::NodeHandle &pnh) {
+
+  pcd_pub_ = nh.advertise<sensor_msgs::PointCloud2>("points_map", 1, true);
+  stat_pub_ = nh.advertise<std_msgs::Bool>("pmap_stat", 1, true);
+
+  std_msgs::Bool stat_msg;
+  stat_msg.data = false;
+  stat_pub_.publish(stat_msg);
+
+  service_ = nh.advertiseService("map_load_from_pcdfile", &points_map_loader_upon_request::publish_pcd, this);
 }
 
+
+bool points_map_loader_upon_request::publish_pcd(autoware_msgs::String::Request &req, autoware_msgs::String::Request &res) {
+
+  int err = 0;
+  sensor_msgs::PointCloud2 pcd = create_pcd(req.str, &err);
+
+  if (pcd.width != 0) {
+    pcd.header.frame_id = "map";
+    pcd_pub_.publish(pcd);
+
+    if (err == 0) {
+      std_msgs::Bool stat_msg;
+      stat_msg.data = true;
+      stat_pub_.publish(stat_msg);
+    }
+  }
+
+  return true;
+}
+
+void points_map_loader_upon_request::run() {
+  ros::spin();
+}
 
 }  // namespace
 
 int main(int argc, char** argv)
 {
   ros::init(argc, argv, "points_map_loader");
-
   ros::NodeHandle nh;
   ros::NodeHandle pnh("~");
 
-  pcd_pub = nh.advertise<sensor_msgs::PointCloud2>("points_map", 1, true);
-  stat_pub = nh.advertise<std_msgs::Bool>("pmap_stat", 1, true);
-
-  stat_msg.data = false;
-  stat_pub.publish(stat_msg);
-
-  int err = 0;
-  std::vector<std::string> pcd_file_paths;
-  publish_pcd(create_pcd(pcd_file_paths, &err), &err);
-
-  ros::spin();
+  points_map_loader_upon_request loader(nh, pnh);
+  loader.run();
 
   return 0;
 }
