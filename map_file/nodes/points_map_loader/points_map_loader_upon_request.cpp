@@ -64,10 +64,10 @@ private:
   ros::Publisher pcd_pub_;
   ros::Publisher stat_pub_;
   ros::ServiceServer service_;
-
+  std::string current_pcd_file_;
 };
 
-points_map_loader_upon_request::points_map_loader_upon_request(ros::NodeHandle &nh, ros::NodeHandle &pnh) {
+points_map_loader_upon_request::points_map_loader_upon_request(ros::NodeHandle &nh, ros::NodeHandle &pnh) : current_pcd_file_{} {
 
   pcd_pub_ = nh.advertise<sensor_msgs::PointCloud2>("points_map", 1, true);
   stat_pub_ = nh.advertise<std_msgs::Bool>("pmap_stat", 1, true);
@@ -82,8 +82,13 @@ points_map_loader_upon_request::points_map_loader_upon_request(ros::NodeHandle &
 
 bool points_map_loader_upon_request::publish_pcd(autoware_msgs::String::Request &req, autoware_msgs::String::Request &res) {
 
+  if (req.str == current_pcd_file_) {
+    return true;
+  }
+
   int err = 0;
   sensor_msgs::PointCloud2 pcd = create_pcd(req.str, &err);
+  current_pcd_file_ = req.str;
 
   if (pcd.width != 0) {
     pcd.header.frame_id = "map";
